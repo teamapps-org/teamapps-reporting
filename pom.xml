@@ -196,9 +196,9 @@
                             </execution>
                         </executions>
                         <configuration>
-                            <projectName>UniversalDB</projectName>
+                            <projectName>TeamApps Reporting</projectName>
                             <organizationName>TeamApps.org</organizationName>
-                            <inceptionYear>2014</inceptionYear>
+                            <inceptionYear>2020</inceptionYear>
                             <licenseName>apache_v2</licenseName>
                             <processStartTag>========================LICENSE_START=================================
                             </processStartTag>
