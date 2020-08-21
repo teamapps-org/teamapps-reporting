@@ -53,9 +53,10 @@
     </scm>
 
     <dependencies>
+
         <dependency>
             <groupId>org.docx4j</groupId>
-            <artifactId>docx4j-JAXB-MOXy</artifactId>
+            <artifactId>docx4j-JAXB-ReferenceImpl</artifactId>
             <version>11.1.8</version>
         </dependency>
 
