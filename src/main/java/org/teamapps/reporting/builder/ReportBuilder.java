@@ -106,7 +106,7 @@ public class ReportBuilder {
 		MainDocumentPart mainDocumentPart = template.getMainDocumentPart();
 		DocumentBuilder documentBuilder = new DocumentBuilder();
 		for (Map.Entry<String, String> entry : replacementMap.entrySet()) {
-			documentBuilder.replaceTextRun(entry.getKey(), entry.getValue(), mainDocumentPart);
+			documentBuilder.replaceTextRunWithFootersAndHeaders(entry.getKey(), entry.getValue(), mainDocumentPart, template);
 		}
 
 		for (TableBuilder tableBuilder : tableBuilders) {

@@ -21,6 +21,8 @@ package org.teamapps.reporting.builder;
 
 
 import org.docx4j.XmlUtils;
+import org.docx4j.model.structure.HeaderFooterPolicy;
+import org.docx4j.model.structure.SectionWrapper;
 import org.docx4j.openpackaging.exceptions.Docx4JException;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.wml.*;
@@ -125,7 +127,7 @@ public class DocumentBuilder {
 		}
 	}
 
-	public void replaceTextRun(String key, String value, Object element) {
+	public void replaceParagraphTextRun(String key, String value, Object element) {
 		P paragraph = getParagraphWithText(element, key);
 		if (paragraph == null) {
 			return;
@@ -137,6 +139,42 @@ public class DocumentBuilder {
 				text.setValue(replacedTextValue);
 			}
 		}
+	}
+
+	public void replaceTextRun(String key, String value, Object element) {
+		List<Text> texts = getAllElements(element, new Text());
+		for (Text text : texts) {
+			if (text.getValue().contains(key)) {
+				String replacedTextValue = text.getValue().replace(key, value);
+				text.setValue(replacedTextValue);
+			}
+		}
+	}
+
+	public void replaceTextRunWithFootersAndHeaders(String key, String value, Object element, WordprocessingMLPackage template) {
+		List<Text> texts = getAllElements(element, new Text());
+		texts.addAll(getHeaderFooterTexts(template));
+		for (Text text : texts) {
+			if (text.getValue().contains(key)) {
+				String replacedTextValue = text.getValue().replace(key, value);
+				text.setValue(replacedTextValue);
+			}
+		}
+	}
+
+	private List<Text> getHeaderFooterTexts(WordprocessingMLPackage template) {
+		List<SectionWrapper> sectionWrappers = template.getDocumentModel().getSections();
+		List<Text> texts = new ArrayList<>();
+		for (SectionWrapper sectionWrapper : sectionWrappers) {
+			HeaderFooterPolicy headerFooterPolicy = sectionWrapper.getHeaderFooterPolicy();
+			if (headerFooterPolicy.getDefaultHeader() != null) {
+				texts.addAll(getAllElements(headerFooterPolicy.getDefaultHeader(), new Text()));
+			}
+			if (headerFooterPolicy.getDefaultFooter() != null) {
+				texts.addAll(getAllElements(headerFooterPolicy.getDefaultFooter(), new Text()));
+			}
+		}
+		return texts;
 	}
 
 	public void removeChild(Object parent, Object child) {
