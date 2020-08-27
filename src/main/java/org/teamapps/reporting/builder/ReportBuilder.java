@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -19,14 +19,12 @@
  */
 package org.teamapps.reporting.builder;
 
-import org.docx4j.openpackaging.exceptions.Docx4JException;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 import org.docx4j.openpackaging.parts.WordprocessingML.MainDocumentPart;
 import org.teamapps.reporting.convert.DocumentConverter;
 import org.teamapps.reporting.convert.DocumentFormat;
 import org.teamapps.reporting.convert.UnsupportedFormatException;
 
-import javax.xml.bind.JAXBException;
 import java.io.*;
 import java.util.*;
 
@@ -60,11 +58,11 @@ public class ReportBuilder {
 		return this;
 	}
 
-	public TableBuilder createTableBuilder(String ... keys){
+	public TableBuilder createTableBuilder(String... keys) {
 		return createTableBuilder(Arrays.asList(keys));
 	}
 
-	public TableBuilder createTableBuilder(List<String> keys){
+	public TableBuilder createTableBuilder(List<String> keys) {
 		TableBuilder tableBuilder = new TableBuilder(keys);
 		tableBuilders.add(tableBuilder);
 		return tableBuilder;
@@ -102,7 +100,7 @@ public class ReportBuilder {
 		}
 	}
 
-	private void processDocument(WordprocessingMLPackage template) throws Docx4JException, JAXBException {
+	private void processDocument(WordprocessingMLPackage template) {
 		MainDocumentPart mainDocumentPart = template.getMainDocumentPart();
 		DocumentBuilder documentBuilder = new DocumentBuilder();
 		for (Map.Entry<String, String> entry : replacementMap.entrySet()) {
@@ -110,7 +108,7 @@ public class ReportBuilder {
 		}
 
 		for (TableBuilder tableBuilder : tableBuilders) {
-			documentBuilder.fillTable(tableBuilder.createReplacementMap(), template, tableBuilder.getKeys());
+			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, tableBuilder.getKeys());
 		}
 	}
 

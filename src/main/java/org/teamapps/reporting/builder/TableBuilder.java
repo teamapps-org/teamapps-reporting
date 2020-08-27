@@ -20,6 +20,7 @@
 package org.teamapps.reporting.builder;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -27,6 +28,7 @@ public class TableBuilder {
 
 	private List<String> keys;
 	private List<RowBuilder> rowBuilders = new ArrayList<>();
+	private List<List<String>> removeUnusedTemplateRows = new ArrayList<>();
 
 	protected TableBuilder(List<String> keys) {
 		this.keys = keys;
@@ -50,5 +52,12 @@ public class TableBuilder {
 		return rowsReplacementMap;
 	}
 
+	public TableBuilder removeUnusedTemplateRow(String ... keys) {
+		removeUnusedTemplateRows.add(Arrays.asList(keys));
+		return this;
+	}
 
+	public List<List<String>> getRemoveUnusedTemplateRows() {
+		return removeUnusedTemplateRows;
+	}
 }

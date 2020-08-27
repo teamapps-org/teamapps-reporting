@@ -73,11 +73,15 @@ public class DocumentBuilder {
 		template.save(f);
 	}
 
-	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, String ... keys) throws Docx4JException, JAXBException {
+	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, String ... keys) {
 		fillTable(textToAdd, template, Arrays.asList(keys));
 	}
 
-	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, List<String> keys) throws Docx4JException, JAXBException {
+	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, List<String> keys) {
+		fillTable(textToAdd, Collections.emptyList(), template, keys);
+	}
+
+	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, List<String> keys) {
 		List<Tbl> tables = getAllElements(template.getMainDocumentPart(), new Tbl());
 		Tbl matchingTable = null;
 		for (Tbl table : tables) {
@@ -104,6 +108,11 @@ public class DocumentBuilder {
 					replaceParagraph(entry.getKey(), entry.getValue(), row);
 				}
 				matchingTable.getContent().add(row);
+			}
+
+			for (List<String> removeTemplateRow : removeTemplateRows) {
+				Tr templateRow = findRowInTable(matchingTable, removeTemplateRow);
+				removeSet.add(templateRow);
 			}
 
 			for (Tr tr : removeSet) {
