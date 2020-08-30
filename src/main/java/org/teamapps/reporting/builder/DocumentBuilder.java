@@ -82,21 +82,7 @@ public class DocumentBuilder {
 	}
 
 	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, List<String> keys) {
-		List<Tbl> tables = getAllElements(template.getMainDocumentPart(), new Tbl());
-		Tbl matchingTable = null;
-		for (Tbl table : tables) {
-			boolean hit = true;
-			for (String key : keys) {
-				if (getParagraphWithText(table, key) == null) {
-					hit = false;
-					break;
-				}
-			}
-			if (hit) {
-				matchingTable = table;
-				break;
-			}
-		}
+		Tbl matchingTable = findTable(template.getMainDocumentPart(), keys);
 
 		Set<Tr> removeSet = new HashSet<>();
 		if (matchingTable != null) {
@@ -119,6 +105,25 @@ public class DocumentBuilder {
 				matchingTable.getContent().remove(tr);
 			}
 		}
+	}
+
+	public Tbl findTable(Object element, List<String> keys) {
+		List<Tbl> tables = getAllElements(element, new Tbl());
+		Tbl matchingTable = null;
+		for (Tbl table : tables) {
+			boolean hit = true;
+			for (String key : keys) {
+				if (getParagraphWithText(table, key) == null) {
+					hit = false;
+					break;
+				}
+			}
+			if (hit) {
+				matchingTable = table;
+				break;
+			}
+		}
+		return matchingTable;
 	}
 
 	public void replaceParagraph(String key, String value, Object element) {
