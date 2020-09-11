@@ -84,10 +84,15 @@ public class DocumentBuilder {
 	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, List<String> keys) {
 		Tbl matchingTable = findTable(template.getMainDocumentPart(), keys);
 
+		Map<Set<String>, Tr> templateRowByColumnsSet = new HashMap<>();
 		Set<Tr> removeSet = new HashSet<>();
 		if (matchingTable != null) {
 			for (Map<String, String> replaceMap : textToAdd) {
-				Tr templateRow = findRowInTable(matchingTable, replaceMap.keySet());
+				Tr templateRow = templateRowByColumnsSet.get(replaceMap.keySet());
+				if (templateRow == null) {
+					templateRow = findRowInTable(matchingTable, replaceMap.keySet());
+					templateRowByColumnsSet.put(replaceMap.keySet(), templateRow);
+				}
 				removeSet.add(templateRow);
 				Tr row = copyElement(templateRow);
 				for (Map.Entry<String, String> entry : replaceMap.entrySet()) {
