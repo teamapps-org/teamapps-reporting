@@ -35,18 +35,24 @@ public class ReportBuilder {
 	}
 
 	public static ReportBuilder create(DocumentFormat inputFormat, InputStream inputStream) {
-		return new ReportBuilder(inputFormat, inputStream);
+		return create(inputFormat, inputStream, false);
+	}
+
+	public static ReportBuilder create(DocumentFormat inputFormat, InputStream inputStream, boolean strictMode) {
+		return new ReportBuilder(inputFormat, inputStream, strictMode);
 	}
 
 	private final DocumentFormat inputFormat;
 	private final InputStream inputStream;
+	private final boolean strictMode;
 	private File outputFile;
 	private Map<String, String> replacementMap = new HashMap();
 	private List<TableBuilder> tableBuilders = new ArrayList<>();
 
-	public ReportBuilder(DocumentFormat inputFormat, InputStream inputStream) {
+	public ReportBuilder(DocumentFormat inputFormat, InputStream inputStream, boolean strictMode) {
 		this.inputFormat = inputFormat;
 		this.inputStream = inputStream;
+		this.strictMode = strictMode;
 	}
 
 	public void setOutputFile(File outputFile) {
@@ -93,14 +99,13 @@ public class ReportBuilder {
 		File outputFile = createOutputFile(outputFormat);
 		if (outputFormat == DocumentFormat.DOCX) {
 			template.save(outputFile);
-			return outputFile;
 		} else {
 			converter.convertDocument(template, outputFile, outputFormat);
-			return outputFile;
 		}
+		return outputFile;
 	}
 
-	private void processDocument(WordprocessingMLPackage template) {
+	private void processDocument(WordprocessingMLPackage template) throws Exception {
 		MainDocumentPart mainDocumentPart = template.getMainDocumentPart();
 		DocumentBuilder documentBuilder = new DocumentBuilder();
 		for (Map.Entry<String, String> entry : replacementMap.entrySet()) {
@@ -108,7 +113,7 @@ public class ReportBuilder {
 		}
 
 		for (TableBuilder tableBuilder : tableBuilders) {
-			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, tableBuilder.getKeys());
+			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys());
 		}
 	}
 

@@ -34,6 +34,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class DocumentBuilder {
 
@@ -73,16 +74,19 @@ public class DocumentBuilder {
 		template.save(f);
 	}
 
-	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, String ... keys) {
-		fillTable(textToAdd, template, Arrays.asList(keys));
+	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, boolean strictMode, String ... keys) throws Exception {
+		fillTable(textToAdd, template, strictMode, Arrays.asList(keys));
 	}
 
-	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, List<String> keys) {
-		fillTable(textToAdd, Collections.emptyList(), template, keys);
+	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, boolean strictMode, List<String> keys) throws Exception {
+		fillTable(textToAdd, Collections.emptyList(), template, strictMode, keys);
 	}
 
-	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, List<String> keys) {
+	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys) throws Exception {
 		Tbl matchingTable = findTable(template.getMainDocumentPart(), keys);
+		if (strictMode && matchingTable == null) {
+			throw new Exception("Error: missing template table for keys" + String.join(", ", keys));
+		}
 
 		Map<Set<String>, Tr> templateRowByColumnsSet = new HashMap<>();
 		Set<Tr> removeSet = new HashSet<>();
@@ -92,6 +96,13 @@ public class DocumentBuilder {
 				if (templateRow == null) {
 					templateRow = findRowInTable(matchingTable, replaceMap.keySet());
 					templateRowByColumnsSet.put(replaceMap.keySet(), templateRow);
+				}
+				if (templateRow == null) {
+					if (strictMode) {
+						throw new Exception("Error: missing template row for keys" + String.join(", ", replaceMap.keySet()));
+					} else {
+						continue;
+					}
 				}
 				removeSet.add(templateRow);
 				Tr row = copyElement(templateRow);
