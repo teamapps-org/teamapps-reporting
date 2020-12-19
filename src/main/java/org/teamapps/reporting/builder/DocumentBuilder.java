@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,19 +29,17 @@ import org.docx4j.wml.*;
 import org.jvnet.jaxb2_commons.ppp.Child;
 
 import javax.xml.bind.JAXBElement;
-import javax.xml.bind.JAXBException;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class DocumentBuilder {
 
-	public Map<String, String> createReplaceRowMap(String ... values) {
+	public Map<String, String> createReplaceRowMap(String... values) {
 		Map<String, String> map = new HashMap<>();
 		for (int i = 0; i < values.length; i += 2) {
-			map.put(values[i], values[i+1]);
+			map.put(values[i], values[i + 1]);
 		}
 		return map;
 	}
@@ -74,7 +72,7 @@ public class DocumentBuilder {
 		template.save(f);
 	}
 
-	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, boolean strictMode, String ... keys) throws Exception {
+	public void fillTable(List<Map<String, String>> textToAdd, WordprocessingMLPackage template, boolean strictMode, String... keys) throws Exception {
 		fillTable(textToAdd, template, strictMode, Arrays.asList(keys));
 	}
 
@@ -181,13 +179,109 @@ public class DocumentBuilder {
 		}
 	}
 
+	private void replaceTextRunWithinMarkers(String key, String value, Text text) {
+		P paragraph = getParagraphOfText(text);
+		if (paragraph != null) {
+			List<Text> texts = getMarkerTextRuns(paragraph, key, "<", ">");
+			if (texts == null || texts.isEmpty()) {
+				return;
+			}
+			if (texts.size() == 1) {
+				Text t = texts.get(0);
+				t.setValue(t.getValue().replace(key, value));
+			} else if (texts.size() == 2) {
+				Text start = texts.get(0);
+				Text end = texts.get(1);
+				int pos = start.getValue().lastIndexOf('<');
+				start.setValue(start.getValue().substring(0, pos));
+				pos = end.getValue().indexOf('>');
+				end.setValue(value + end.getValue().substring(pos + 1));
+				addSpace(end, true, false);
+			} else {
+				Text start = texts.get(0);
+				Text end = texts.get(texts.size() - 1);
+				int pos = start.getValue().lastIndexOf('<');
+				start.setValue(start.getValue().substring(0, pos));
+				pos = end.getValue().indexOf('>');
+				end.setValue(end.getValue().substring(pos + 1));
+
+				Text mid = texts.get(1);
+				mid.setValue(value);
+				addSpace(mid, true, true);
+				if (texts.size() > 3) {
+					for (int i = 2; i < texts.size() - 1; i++) {
+						texts.get(i).setValue("");
+					}
+				}
+			}
+		}
+	}
+
+	private List<Text> getMarkerTextRuns(P paragraph, String key, String startMarker, String endMarker) {
+		List<Text> texts = getAllElements(paragraph, new Text());
+		boolean started = false;
+		List<Text> resultRuns = null;
+		for (Text text : texts) {
+			if (text.getValue().contains(startMarker)) {
+				if (started) {
+					if (text.getValue().contains(endMarker)) {
+						StringBuilder sb = new StringBuilder();
+						resultRuns.add(text);
+						resultRuns.forEach(t -> sb.append(t.getValue()));
+						if (sb.toString().contains(key)) {
+							return resultRuns;
+						}
+					}
+				}
+				started = true;
+				resultRuns = new ArrayList<>();
+			}
+			if (started) {
+				resultRuns.add(text);
+			}
+			if (text.getValue().contains(endMarker)) {
+				StringBuilder sb = new StringBuilder();
+				resultRuns.forEach(t -> sb.append(t.getValue()));
+				if (sb.toString().contains(key)) {
+					return resultRuns;
+				}
+			}
+		}
+		return null;
+	}
+
+	private void addSpace(Text text, boolean left, boolean right) {
+		Object parent = text.getParent();
+		if (parent instanceof R) {
+			R run = (R) parent;
+			if (run.getContent().size() == 1) {
+				if (left) {
+					Text space = new Text();
+					space.setSpace("preserve");
+					space.setValue(" ");
+					run.getContent().add(0, space);
+				}
+				if (right) {
+					Text space = new Text();
+					space.setSpace("preserve");
+					space.setValue(" ");
+					run.getContent().add(space);
+				}
+			}
+		}
+	}
+
 	public void replaceTextRunWithFootersAndHeaders(String key, String value, Object element, WordprocessingMLPackage template) {
 		List<Text> texts = getAllElements(element, new Text());
 		texts.addAll(getHeaderFooterTexts(template));
 		for (Text text : texts) {
-			if (text.getValue().contains(key)) {
-				String replacedTextValue = text.getValue().replace(key, value);
-				text.setValue(replacedTextValue);
+			if (key.startsWith("<") && key.endsWith(">")) {
+				replaceTextRunWithinMarkers(key, value, text);
+			} else {
+				if (text.getValue().contains(key)) {
+					String replacedTextValue = text.getValue().replace(key, value);
+					text.setValue(replacedTextValue);
+				}
 			}
 		}
 	}
@@ -232,7 +326,7 @@ public class DocumentBuilder {
 		return findRowInTable(table, keys.toArray(new String[0]));
 	}
 
-	public Tr findRowInTable(Tbl table, String ... keys) {
+	public Tr findRowInTable(Tbl table, String... keys) {
 		List<Tr> rows = getAllElements(table, new Tr());
 		for (Tr row : rows) {
 			boolean hit = true;
@@ -257,6 +351,18 @@ public class DocumentBuilder {
 			texts.forEach(text -> sb.append(text.getValue()));
 			if (sb.length() > 0 && sb.toString().contains(key)) {
 				return paragraph;
+			}
+		}
+		return null;
+	}
+
+	public P getParagraphOfText(Text text) {
+		Object parent = text.getParent();
+		if (parent != null && parent instanceof R) {
+			R run = (R) parent;
+			Object paragraph = run.getParent();
+			if (paragraph != null && paragraph instanceof P) {
+				return (P) paragraph;
 			}
 		}
 		return null;

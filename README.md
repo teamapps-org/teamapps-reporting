@@ -15,7 +15,7 @@ Current TeamApps Reporting version: [![Maven Central](https://maven-badges.herok
 <dependency>
   <groupId>org.teamapps</groupId>
   <artifactId>teamapps-reporting</artifactId>
-  <version>1.5</version>
+  <version>1.6</version>
 </dependency>
 ```
 
