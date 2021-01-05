@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- *
+ * 
  *      http://www.apache.org/licenses/LICENSE-2.0
- *
+ * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -92,7 +92,7 @@ public class DocumentBuilder {
 			for (Map<String, String> replaceMap : textToAdd) {
 				Tr templateRow = templateRowByColumnsSet.get(replaceMap.keySet());
 				if (templateRow == null) {
-					templateRow = findRowInTable(matchingTable, replaceMap.keySet());
+					templateRow = findBestRowInTable(matchingTable, replaceMap.keySet());
 					templateRowByColumnsSet.put(replaceMap.keySet(), templateRow);
 				}
 				if (templateRow == null) {
@@ -111,7 +111,7 @@ public class DocumentBuilder {
 			}
 
 			for (List<String> removeTemplateRow : removeTemplateRows) {
-				Tr templateRow = findRowInTable(matchingTable, removeTemplateRow);
+				Tr templateRow = findBestRowInTable(matchingTable, removeTemplateRow);
 				removeSet.add(templateRow);
 			}
 
@@ -320,6 +320,29 @@ public class DocumentBuilder {
 				removeChild(contentAccessor, contentSet, parent);
 			}
 		}
+	}
+
+	public Tr findBestRowInTable(Tbl table, Collection<String> keys) {
+		return findBestRowInTable(table, keys.toArray(new String[0]));
+	}
+
+	public Tr findBestRowInTable(Tbl table, String... keys) {
+		List<Tr> rows = getAllElements(table, new Tr());
+		int bestHitScore = 0;
+		Tr bestRow = null;
+		for (Tr row : rows) {
+			int score = 0;
+			for (String key : keys) {
+				if (getParagraphWithText(row, key) != null) {
+					score++;
+				}
+			}
+			if (score > bestHitScore) {
+				bestRow = row;
+				bestHitScore = score;
+			}
+		}
+		return bestRow;
 	}
 
 	public Tr findRowInTable(Tbl table, Collection<String> keys) {
