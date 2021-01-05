@@ -40,6 +40,10 @@ public interface DocumentConverter {
 		return new RemoteDocumentConverter(host, user, password);
 	}
 
+	static DocumentConverter createRemoteConverter(String host, String user, String password, String proxyHost, int proxyPort) {
+		return new RemoteDocumentConverter(host, user, password, proxyHost, proxyPort);
+	}
+
 	default boolean convertDocument(InputStream inputStream, DocumentFormat inputFormat, File output, DocumentFormat outputFormat) throws Exception {
 		File tempFile = File.createTempFile("temp", "." + inputFormat.getFormat());
 		FileUtils.copyInputStreamToFile(inputStream, tempFile);
