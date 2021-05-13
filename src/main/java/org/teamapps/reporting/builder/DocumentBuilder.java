@@ -21,10 +21,13 @@ package org.teamapps.reporting.builder;
 
 
 import org.docx4j.XmlUtils;
+import org.docx4j.dml.wordprocessingDrawing.Inline;
 import org.docx4j.model.structure.HeaderFooterPolicy;
 import org.docx4j.model.structure.SectionWrapper;
 import org.docx4j.openpackaging.exceptions.Docx4JException;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
+import org.docx4j.openpackaging.parts.WordprocessingML.BinaryPartAbstractImage;
+import org.docx4j.openpackaging.parts.WordprocessingML.HeaderPart;
 import org.docx4j.wml.*;
 import org.jvnet.jaxb2_commons.ppp.Child;
 
@@ -389,6 +392,17 @@ public class DocumentBuilder {
 			}
 		}
 		return null;
+	}
+
+	public void addImage(WordprocessingMLPackage template, HeaderPart part, P paragraph, byte[] bytes) throws Exception {
+		BinaryPartAbstractImage imagePart = BinaryPartAbstractImage.createImagePart(template, part, bytes);
+		Inline inline = imagePart.createImageInline(null, null, 0,1, false, 800);
+		ObjectFactory factory = new ObjectFactory();
+		Drawing drawing = factory.createDrawing();
+		drawing.getAnchorOrInline().add(inline);
+		R run = factory.createR();
+		paragraph.getContent().add(run);
+		run.getContent().add(drawing);
 	}
 }
 
