@@ -31,7 +31,7 @@ import org.docx4j.openpackaging.parts.WordprocessingML.HeaderPart;
 import org.docx4j.wml.*;
 import org.jvnet.jaxb2_commons.ppp.Child;
 
-import javax.xml.bind.JAXBElement;
+import jakarta.xml.bind.JAXBElement;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
