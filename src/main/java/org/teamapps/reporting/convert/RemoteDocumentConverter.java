@@ -104,7 +104,7 @@ public class RemoteDocumentConverter implements DocumentConverter {
 			context.setAuthCache(authCache);
 		}
 
-		if (proxyHost != null) {
+		if (proxyHost != null && !proxyHost.isBlank()) {
 			RequestConfig requestConfig = RequestConfig.custom()
 					.setProxy(new HttpHost(proxyHost, proxyPort))
 					.build();
