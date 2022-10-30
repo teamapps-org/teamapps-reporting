@@ -46,6 +46,7 @@ public class RemoteDocumentConverter implements DocumentConverter {
 	private final String host;
 	private String user;
 	private String password;
+	private boolean noHttps;
 
 	private String proxyHost;
 	private int proxyPort;
@@ -71,6 +72,14 @@ public class RemoteDocumentConverter implements DocumentConverter {
 		this.proxyHost = proxyHost;
 		this.proxyPort = proxyPort;
 		init();
+	}
+
+	public boolean isNoHttps() {
+		return noHttps;
+	}
+
+	public void setNoHttps(boolean noHttps) {
+		this.noHttps = noHttps;
 	}
 
 	private String cleanHost(String s) {
@@ -123,7 +132,8 @@ public class RemoteDocumentConverter implements DocumentConverter {
 		if (outputFormat == DocumentFormat.PNG) {
 			UnsupportedFormatException.throwException(outputFormat);
 		}
-		HttpPost post = new HttpPost("https://" + host + "/conversion?format=" + outputFormat.getFormat());
+		String uri = (isNoHttps() ? "http://" : "https://") + host + "/conversion?format=" + outputFormat.getFormat();
+		HttpPost post = new HttpPost(uri);
 		MultipartEntityBuilder builder = MultipartEntityBuilder.create();
 		builder.setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
 		builder.addBinaryBody("file", inputStream, ContentType.DEFAULT_BINARY, "input." + inputFormat.getFormat());
