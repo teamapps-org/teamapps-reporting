@@ -108,7 +108,7 @@ public class DocumentBuilder {
 				removeSet.add(templateRow);
 				Tr row = copyElement(templateRow);
 				for (Map.Entry<String, String> entry : replaceMap.entrySet()) {
-					replaceParagraph(entry.getKey(), entry.getValue(), row);
+					replaceObjectDataWithinMarkers(entry.getKey(), entry.getValue(), row);
 				}
 				matchingTable.getContent().add(row);
 			}
@@ -182,8 +182,17 @@ public class DocumentBuilder {
 		}
 	}
 
+	private void replaceObjectDataWithinMarkers(String key, String value, Object element) {
+		P paragraph = getParagraphWithText(element, key);
+		replaceParagraphMarkerText(key, value, paragraph);
+	}
+
 	private void replaceTextRunWithinMarkers(String key, String value, Text text) {
 		P paragraph = getParagraphOfText(text);
+		replaceParagraphMarkerText(key, value, paragraph);
+	}
+
+	private void replaceParagraphMarkerText(String key, String value, P paragraph) {
 		if (paragraph != null) {
 			List<Text> texts = getMarkerTextRuns(paragraph, key, "<", ">");
 			if (texts == null || texts.isEmpty()) {
