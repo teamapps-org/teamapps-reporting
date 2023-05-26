@@ -68,11 +68,21 @@ public class ReportBuilder {
 		return createTableBuilder(Arrays.asList(keys));
 	}
 
+	public TableBuilder copyTable(String... keys) {
+		return createTableBuilder(Arrays.asList(keys), true);
+	}
+
 	public TableBuilder createTableBuilder(List<String> keys) {
-		TableBuilder tableBuilder = new TableBuilder(keys);
+		return createTableBuilder(keys, false);
+	}
+
+	public TableBuilder createTableBuilder(List<String> keys, boolean copyTable) {
+		TableBuilder tableBuilder = new TableBuilder(keys, copyTable);
 		tableBuilders.add(tableBuilder);
 		return tableBuilder;
 	}
+
+
 
 	public File build() throws Exception {
 		if (inputFormat != DocumentFormat.DOCX) {
@@ -113,7 +123,7 @@ public class ReportBuilder {
 		}
 
 		for (TableBuilder tableBuilder : tableBuilders) {
-			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys());
+			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys(), tableBuilder.isCopyTable());
 		}
 	}
 

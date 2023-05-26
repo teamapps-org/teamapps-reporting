@@ -29,9 +29,11 @@ public class TableBuilder {
 	private List<String> keys;
 	private List<RowBuilder> rowBuilders = new ArrayList<>();
 	private List<List<String>> removeUnusedTemplateRows = new ArrayList<>();
+	private boolean copyTable;
 
-	protected TableBuilder(List<String> keys) {
+	protected TableBuilder(List<String> keys, boolean copyTable) {
 		this.keys = keys;
+		this.copyTable = copyTable;
 	}
 
 	public RowBuilder addRow() {
@@ -42,6 +44,10 @@ public class TableBuilder {
 
 	public List<String> getKeys() {
 		return keys;
+	}
+
+	public boolean isCopyTable() {
+		return copyTable;
 	}
 
 	public List<Map<String, String>> createReplacementMap() {

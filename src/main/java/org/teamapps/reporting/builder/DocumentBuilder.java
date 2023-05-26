@@ -84,6 +84,10 @@ public class DocumentBuilder {
 	}
 
 	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys) throws Exception {
+		fillTable(textToAdd, removeTemplateRows, template, strictMode, keys, false);
+	}
+
+	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable) throws Exception {
 		Tbl matchingTable = findTable(template.getMainDocumentPart(), keys);
 		if (strictMode && matchingTable == null) {
 			throw new Exception("Error: missing template table for keys" + String.join(", ", keys));
@@ -92,6 +96,13 @@ public class DocumentBuilder {
 		Map<Set<String>, Tr> templateRowByColumnsSet = new HashMap<>();
 		Set<Tr> removeSet = new HashSet<>();
 		if (matchingTable != null) {
+
+			if (copyTable) {
+				Tbl tableCopy = copyElement(matchingTable);
+				template.getMainDocumentPart().addObject(tableCopy);
+				matchingTable = tableCopy;
+			}
+
 			for (Map<String, String> replaceMap : textToAdd) {
 				Tr templateRow = templateRowByColumnsSet.get(replaceMap.keySet());
 				if (templateRow == null) {
