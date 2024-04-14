@@ -58,17 +58,28 @@ public class DocumentBuilder {
 
 	public <T> List<T> getAllElements(Object element, T toSearch) {
 		List<T> result = new ArrayList<>();
-		if (element instanceof JAXBElement) element = ((JAXBElement<?>) element).getValue();
-
-		if (element.getClass().equals(toSearch.getClass()))
+		if (element instanceof JAXBElement) {
+			element = ((JAXBElement<?>) element).getValue();
+		}
+		if (element.getClass().equals(toSearch.getClass())) {
 			result.add((T) element);
-		else if (element instanceof ContentAccessor) {
+		} else if (element instanceof ContentAccessor) {
 			List<?> children = ((ContentAccessor) element).getContent();
 			for (Object child : children) {
 				result.addAll(getAllElements(child, toSearch));
 			}
 		}
 		return result;
+	}
+
+	public static Object unwrapJAXBElement(Object element) {
+		if (element == null) {
+			return null;
+		}
+		if (element instanceof JAXBElement) {
+			return ((JAXBElement<?>) element).getValue();
+		}
+		return element;
 	}
 
 	public void save(WordprocessingMLPackage template, String target) throws Docx4JException {
@@ -100,6 +111,12 @@ public class DocumentBuilder {
 
 			if (copyTable) {
 				Tbl tableCopy = copyElement(matchingTable);
+				P spaceParagraph = getParagraphWithText(template.getMainDocumentPart(), "<table-space>");
+				if (spaceParagraph != null) {
+					P newParagraph = copyElement(spaceParagraph);
+					replaceParagraphMarkerText("<table-space>", "", newParagraph);
+					template.getMainDocumentPart().addObject(newParagraph);
+				}
 				template.getMainDocumentPart().addObject(tableCopy);
 				matchingTable = tableCopy;
 			}
@@ -133,6 +150,20 @@ public class DocumentBuilder {
 			for (Tr tr : removeSet) {
 				matchingTable.getContent().remove(tr);
 			}
+		}
+	}
+
+	public void removeTable(WordprocessingMLPackage template, List<String> keys) {
+		Tbl table = findTable(template.getMainDocumentPart(), keys);
+		if (table != null) {
+			remove(table);
+		}
+	}
+
+	public void removeParagraph(WordprocessingMLPackage template, String key) {
+		P p = getParagraphWithText(template.getMainDocumentPart(), key);
+		if (p != null) {
+			remove(p);
 		}
 	}
 
@@ -323,10 +354,16 @@ public class DocumentBuilder {
 		return texts;
 	}
 
+	public void remove(Object node) {
+		if (node instanceof Child child) {
+			Object parent = child.getParent();
+			removeChild(parent, node);
+		}
+	}
+
 	public void removeChild(Object parent, Object child) {
-		if (parent instanceof ContentAccessor) {
-			ContentAccessor contentAccessor = (ContentAccessor) parent;
-			List<Object> children = contentAccessor.getContent();
+		if (parent instanceof ContentAccessor contentAccessor) {
+			List<Object> children = contentAccessor.getContent().stream().map(DocumentBuilder::unwrapJAXBElement).toList();
 			Set<Object> contentSet = new HashSet<>(children);
 			removeChild(contentAccessor, contentSet, child);
 		}

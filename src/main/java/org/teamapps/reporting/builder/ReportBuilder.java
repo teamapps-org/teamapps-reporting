@@ -48,6 +48,8 @@ public class ReportBuilder {
 	private File outputFile;
 	private Map<String, String> replacementMap = new HashMap();
 	private List<TableBuilder> tableBuilders = new ArrayList<>();
+	private List<TableBuilder> removeTables = new ArrayList<>();
+	private List<String> removeParagraphs = new ArrayList<>();
 
 	public ReportBuilder(DocumentFormat inputFormat, InputStream inputStream, boolean strictMode) {
 		this.inputFormat = inputFormat;
@@ -80,6 +82,14 @@ public class ReportBuilder {
 		TableBuilder tableBuilder = new TableBuilder(keys, copyTable);
 		tableBuilders.add(tableBuilder);
 		return tableBuilder;
+	}
+
+	public void removeTable(String... keys) {
+		removeTables.add(new TableBuilder(Arrays.asList(keys), false));
+	}
+
+	public void removeParagraph(String text) {
+		removeParagraphs.add(text);
 	}
 
 
@@ -125,6 +135,16 @@ public class ReportBuilder {
 		for (TableBuilder tableBuilder : tableBuilders) {
 			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys(), tableBuilder.isCopyTable());
 		}
+
+		for (TableBuilder removeTable : removeTables) {
+			documentBuilder.removeTable(template, removeTable.getKeys());
+		}
+
+		for (String removeParagraph : removeParagraphs) {
+			documentBuilder.removeParagraph(template, removeParagraph);
+		}
+
+
 	}
 
 	private File createOutputFile(DocumentFormat format) throws IOException {

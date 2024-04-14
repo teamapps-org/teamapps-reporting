@@ -7,9 +7,9 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -20,27 +20,31 @@
 package org.teamapps.reporting.convert;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.AuthCache;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.mime.HttpMultipartMode;
-import org.apache.http.entity.mime.MultipartEntityBuilder;
-import org.apache.http.impl.auth.BasicScheme;
-import org.apache.http.impl.client.BasicAuthCache;
-import org.apache.http.impl.client.BasicCredentialsProvider;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.apache.hc.client5.http.auth.AuthCache;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.entity.mime.HttpMultipartMode;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
+import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
+import org.apache.hc.client5.http.impl.auth.BasicScheme;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 
 import java.io.*;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 public class RemoteDocumentConverter implements DocumentConverter {
 	private final String host;
@@ -74,6 +78,44 @@ public class RemoteDocumentConverter implements DocumentConverter {
 		init();
 	}
 
+	private void init() {
+		context = HttpClientContext.create();
+		if (user != null) {
+			HttpHost targetHost = new HttpHost("https", host, 443);
+			BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+			credentialsProvider.setCredentials(new AuthScope(host, 443), new UsernamePasswordCredentials(user, password.toCharArray()));
+			AuthCache authCache = new BasicAuthCache();
+			authCache.put(targetHost, new BasicScheme());
+			context.setCredentialsProvider(credentialsProvider);
+			context.setAuthCache(authCache);
+		}
+
+		if (proxyHost != null && !proxyHost.isBlank()) {
+			RequestConfig requestConfig = RequestConfig.custom()
+					.setProxy(new HttpHost(proxyHost, proxyPort))
+					.build();
+			context.setRequestConfig(requestConfig);
+		}
+		client = HttpClients.custom().build();
+	}
+
+	public static String getWithBasicAuth(final String url, final String user, final String pass) throws URISyntaxException, IOException, ParseException {
+		String result = null;
+		URI uri = new URI(url);
+		final BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+		AuthScope authScope = new AuthScope(uri.getHost(), uri.getPort());
+		credentialsProvider.setCredentials(authScope, new UsernamePasswordCredentials(user, pass.toCharArray()));
+		try (final CloseableHttpClient httpclient = HttpClients.custom().setDefaultCredentialsProvider(credentialsProvider).build()) {
+			final HttpGet httpget = new HttpGet(url);
+			try (final CloseableHttpResponse response = httpclient.execute(httpget)) {
+				result = EntityUtils.toString(response.getEntity());
+			}
+		} catch (IOException | ParseException e) {
+			e.printStackTrace();
+		}
+		return result;
+	}
+
 	public boolean isNoHttps() {
 		return noHttps;
 	}
@@ -90,27 +132,6 @@ public class RemoteDocumentConverter implements DocumentConverter {
 		} else {
 			return s;
 		}
-	}
-
-	private void init() {
-		context = HttpClientContext.create();
-		if (user != null) {
-			HttpHost targetHost = new HttpHost(host, 443, "https");
-			CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-			credentialsProvider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(user, password));
-			AuthCache authCache = new BasicAuthCache();
-			authCache.put(targetHost, new BasicScheme());
-			context.setCredentialsProvider(credentialsProvider);
-			context.setAuthCache(authCache);
-		}
-
-		if (proxyHost != null && !proxyHost.isBlank()) {
-			RequestConfig requestConfig = RequestConfig.custom()
-					.setProxy(new HttpHost(proxyHost, proxyPort))
-					.build();
-			context.setRequestConfig(requestConfig);
-		}
-		client = HttpClients.custom().build();
 	}
 
 	public boolean convertDocument(File input, DocumentFormat inputFormat, File output, DocumentFormat outputFormat) throws Exception {
@@ -135,12 +156,12 @@ public class RemoteDocumentConverter implements DocumentConverter {
 		String uri = (isNoHttps() ? "http://" : "https://") + host + "/conversion?format=" + outputFormat.getFormat();
 		HttpPost post = new HttpPost(uri);
 		MultipartEntityBuilder builder = MultipartEntityBuilder.create();
-		builder.setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
+		builder.setMode(HttpMultipartMode.EXTENDED);
 		builder.addBinaryBody("file", inputStream, ContentType.DEFAULT_BINARY, "input." + inputFormat.getFormat());
 		HttpEntity entity = builder.build();
 		post.setEntity(entity);
-		HttpResponse response = client.execute(post, context);
-		int statusCode = response.getStatusLine().getStatusCode();
+		CloseableHttpResponse response = client.execute(post, context);
+		int statusCode = response.getCode();
 		if (statusCode == 200) {
 			InputStream content = response.getEntity().getContent();
 			FileUtils.copyInputStreamToFile(content, output);
