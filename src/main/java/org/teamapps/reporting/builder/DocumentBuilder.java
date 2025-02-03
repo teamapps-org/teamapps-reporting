@@ -72,6 +72,20 @@ public class DocumentBuilder {
 		return result;
 	}
 
+	public static <T> List<T> getAllElements(Object obj, Class<T> toSearch) {
+		List<T> result = new ArrayList<>();
+		if (obj instanceof JAXBElement<?> element) obj = element.getValue();
+		if (obj.getClass().equals(toSearch)) result.add((T) obj);
+		else if (obj instanceof ContentAccessor) {
+			List<?> children = ((ContentAccessor) obj).getContent();
+			for (Object child : children) {
+				result.addAll(getAllElements(child, toSearch));
+			}
+		}
+		return result;
+	}
+
+
 	public static Object unwrapJAXBElement(Object element) {
 		if (element == null) {
 			return null;
