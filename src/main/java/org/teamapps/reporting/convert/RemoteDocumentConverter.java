@@ -20,40 +20,25 @@
 package org.teamapps.reporting.convert;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.hc.client5.http.auth.AuthCache;
-import org.apache.hc.client5.http.auth.AuthScope;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.classic.methods.HttpPost;
-import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.entity.mime.HttpMultipartMode;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
-import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
-import org.apache.hc.client5.http.impl.auth.BasicCredentialsProvider;
-import org.apache.hc.client5.http.impl.auth.BasicScheme;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHost;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.docx4j.openpackaging.packages.WordprocessingMLPackage;
 
 import java.io.*;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.util.Base64;
 
 public class RemoteDocumentConverter implements DocumentConverter {
 	private final String host;
 	private String user;
 	private String password;
 	private boolean noHttps;
-
-	private String proxyHost;
-	private int proxyPort;
 
 	private CloseableHttpClient client;
 	private HttpClientContext context;
@@ -73,47 +58,14 @@ public class RemoteDocumentConverter implements DocumentConverter {
 		this.host = host;
 		this.user = user;
 		this.password = password;
-		this.proxyHost = proxyHost;
-		this.proxyPort = proxyPort;
 		init();
 	}
 
 	private void init() {
-		context = HttpClientContext.create();
-		if (user != null) {
-			HttpHost targetHost = new HttpHost("https", host, 443);
-			BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-			credentialsProvider.setCredentials(new AuthScope(host, 443), new UsernamePasswordCredentials(user, password.toCharArray()));
-			AuthCache authCache = new BasicAuthCache();
-			authCache.put(targetHost, new BasicScheme());
-			context.setCredentialsProvider(credentialsProvider);
-			context.setAuthCache(authCache);
-		}
-
-		if (proxyHost != null && !proxyHost.isBlank()) {
-			RequestConfig requestConfig = RequestConfig.custom()
-					.setProxy(new HttpHost(proxyHost, proxyPort))
-					.build();
-			context.setRequestConfig(requestConfig);
-		}
-		client = HttpClients.custom().build();
-	}
-
-	public static String getWithBasicAuth(final String url, final String user, final String pass) throws URISyntaxException, IOException, ParseException {
-		String result = null;
-		URI uri = new URI(url);
-		final BasicCredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-		AuthScope authScope = new AuthScope(uri.getHost(), uri.getPort());
-		credentialsProvider.setCredentials(authScope, new UsernamePasswordCredentials(user, pass.toCharArray()));
-		try (final CloseableHttpClient httpclient = HttpClients.custom().setDefaultCredentialsProvider(credentialsProvider).build()) {
-			final HttpGet httpget = new HttpGet(url);
-			try (final CloseableHttpResponse response = httpclient.execute(httpget)) {
-				result = EntityUtils.toString(response.getEntity());
-			}
-		} catch (IOException | ParseException e) {
-			e.printStackTrace();
-		}
-		return result;
+		client = HttpClients.custom()
+				.addRequestInterceptorLast((request, entity, context) ->
+						request.setHeader("Authorization", "Basic " + Base64.getEncoder().encodeToString((user + ":" + password).getBytes())))
+				.build();
 	}
 
 	public boolean isNoHttps() {
