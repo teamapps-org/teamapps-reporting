@@ -4,7 +4,7 @@
 
     <groupId>org.teamapps</groupId>
     <artifactId>teamapps-reporting</artifactId>
-    <version>1.14-SNAPSHOT</version>
+    <version>1.14</version>
 
     <name>TeamApps Reporting</name>
     <description>Reporting utilities for TeamApps</description>
@@ -46,7 +46,7 @@
         <url>https://github.com/teamapps-org/teamapps-reporting</url>
         <connection>scm:git:git@github.com:teamapps-org/teamapps-reporting.git</connection>
         <developerConnection>scm:git:git@github.com:teamapps-org/teamapps-reporting.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>v1.14</tag>
     </scm>
 
     <dependencies>
