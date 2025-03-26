@@ -24,7 +24,6 @@ import org.apache.hc.client5.http.classic.methods.HttpPost;
 import org.apache.hc.client5.http.entity.mime.HttpMultipartMode;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.http.ContentType;
@@ -112,13 +111,14 @@ public class RemoteDocumentConverter implements DocumentConverter {
 		builder.addBinaryBody("file", inputStream, ContentType.DEFAULT_BINARY, "input." + inputFormat.getFormat());
 		HttpEntity entity = builder.build();
 		post.setEntity(entity);
-		CloseableHttpResponse response = client.execute(post, context);
-		int statusCode = response.getCode();
-		if (statusCode == 200) {
-			InputStream content = response.getEntity().getContent();
-			FileUtils.copyInputStreamToFile(content, output);
-		}
-		return statusCode == 200;
+		return client.execute(post, context, response -> {
+			int statusCode = response.getCode();
+			if (statusCode == 200) {
+				InputStream content = response.getEntity().getContent();
+				FileUtils.copyInputStreamToFile(content, output);
+			}
+			return statusCode == 200;
+		});
 	}
 
 	public void close() throws IOException {
