@@ -135,10 +135,11 @@ public class DocumentBuilder {
 				matchingTable = tableCopy;
 			}
 
+			Set<String> allVariables = textToAdd.stream().flatMap(row -> row.keySet().stream()).collect(Collectors.toSet());
 			for (Map<String, String> replaceMap : textToAdd) {
 				Tr templateRow = templateRowByColumnsSet.get(replaceMap.keySet());
 				if (templateRow == null) {
-					templateRow = findBestRowInTable(matchingTable, replaceMap.keySet());
+					templateRow = findBestRowInTable(matchingTable, allVariables, replaceMap.keySet());
 					templateRowByColumnsSet.put(replaceMap.keySet(), templateRow);
 				}
 				if (templateRow == null) {
@@ -157,7 +158,7 @@ public class DocumentBuilder {
 			}
 
 			for (List<String> removeTemplateRow : removeTemplateRows) {
-				Tr templateRow = findBestRowInTable(matchingTable, removeTemplateRow);
+				Tr templateRow = findBestRowInTable(matchingTable, Set.of(), removeTemplateRow);
 				removeSet.add(templateRow);
 			}
 
@@ -395,16 +396,28 @@ public class DocumentBuilder {
 		}
 	}
 
-	public Tr findBestRowInTable(Tbl table, Collection<String> keys) {
-		return findBestRowInTable(table, keys.toArray(new String[0]));
+	public Tr findBestRowInTable(Tbl table, Set<String> allVariables, Collection<String> keys) {
+		Set<String> variablesWithoutReplacement = new HashSet<>(allVariables);
+		variablesWithoutReplacement.removeAll(keys);
+		return findBestRowInTable(table, variablesWithoutReplacement, keys.toArray(new String[0]));
 	}
 
-	public Tr findBestRowInTable(Tbl table, String... keys) {
+	public Tr findBestRowInTable(Tbl table, Set<String> missingVariables, String... keys) {
 		List<Tr> rows = getAllElements(table, new Tr());
 		int bestHitScore = 0;
 		Tr bestRow = null;
 		for (Tr row : rows) {
+			int missing = 0;
 			int score = 0;
+
+			for (String key : missingVariables) {
+				if (getParagraphWithText(row, key) != null) {
+					missing++;
+				}
+			}
+			if (missing > 0) {
+				continue;
+			}
 			for (String key : keys) {
 				if (getParagraphWithText(row, key) != null) {
 					score++;
