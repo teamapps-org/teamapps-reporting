@@ -19,10 +19,8 @@
  */
 package org.teamapps.reporting.builder;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class TableBuilder {
 
@@ -44,6 +42,10 @@ public class TableBuilder {
 
 	public List<String> getKeys() {
 		return keys;
+	}
+
+	public Set<String> getVariables() {
+		return rowBuilders.stream().flatMap(r -> r.getRowMap().keySet().stream()).collect(Collectors.toSet());
 	}
 
 	public boolean isCopyTable() {

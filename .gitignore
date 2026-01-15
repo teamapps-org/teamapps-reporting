@@ -123,3 +123,6 @@ teamapps-client/stats.json
 *.~vsd*
 # Excel Backup File
 *.xlk
+
+### Libre Office lock file
+.~lock.*#
