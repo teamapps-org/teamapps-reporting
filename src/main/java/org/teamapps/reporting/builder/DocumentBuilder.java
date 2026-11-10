@@ -114,6 +114,11 @@ public class DocumentBuilder {
 	}
 
 	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable) throws Exception {
+		fillTable(textToAdd, removeTemplateRows, template, strictMode, keys, copyTable, TemplateRowSelectionMode.NO_VARIABLE_CHECK);
+	}
+
+	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable, TemplateRowSelectionMode mode) throws Exception {
+		Objects.requireNonNull(mode, "mode");
 		Tbl matchingTable = findTable(template.getMainDocumentPart(), keys);
 		if (strictMode && matchingTable == null) {
 			throw new Exception("Error: missing template table for keys" + String.join(", ", keys));
@@ -139,11 +144,12 @@ public class DocumentBuilder {
 			for (Map<String, String> replaceMap : textToAdd) {
 				Tr templateRow = templateRowByColumnsSet.get(replaceMap.keySet());
 				if (templateRow == null) {
-					templateRow = findBestRowInTable(matchingTable, allVariables, replaceMap.keySet());
+					templateRow = selectTemplateRow(matchingTable, allVariables, replaceMap.keySet(), mode);
 					templateRowByColumnsSet.put(replaceMap.keySet(), templateRow);
 				}
 				if (templateRow == null) {
-					if (strictMode) {
+					if (mode == TemplateRowSelectionMode.FAIL || mode == TemplateRowSelectionMode.USE_BEST_MATCH
+							|| (mode == TemplateRowSelectionMode.NO_VARIABLE_CHECK && strictMode)) {
 						throw new Exception("Error: missing template row for keys" + String.join(", ", replaceMap.keySet()));
 					} else {
 						continue;
@@ -394,6 +400,39 @@ public class DocumentBuilder {
 				removeChild(contentAccessor, contentSet, parent);
 			}
 		}
+	}
+
+	private Tr selectTemplateRow(Tbl table, Set<String> allVariables, Collection<String> keys, TemplateRowSelectionMode mode) {
+		if (mode == TemplateRowSelectionMode.NO_VARIABLE_CHECK) {
+			return findBestRowInTable(table, keys);
+		}
+		Tr complete = findBestRowInTable(table, allVariables, keys);
+		if (complete != null || mode != TemplateRowSelectionMode.USE_BEST_MATCH) {
+			return complete;
+		}
+		Set<String> missing = new HashSet<>(allVariables);
+		missing.removeAll(keys);
+		Tr best = null;
+		int fewestOpen = Integer.MAX_VALUE;
+		int mostMatches = 0;
+		for (Tr row : getAllElements(table, new Tr())) {
+			int matches = (int) keys.stream().filter(key -> getParagraphWithText(row, key) != null).count();
+			int open = (int) missing.stream().filter(key -> getParagraphWithText(row, key) != null).count();
+			if (matches > 0 && (open < fewestOpen || (open == fewestOpen && matches > mostMatches))) {
+				best = row;
+				fewestOpen = open;
+				mostMatches = matches;
+			}
+		}
+		return best;
+	}
+
+	public Tr findBestRowInTable(Tbl table, Collection<String> keys) {
+		return findBestRowInTable(table, Set.of(), keys.toArray(new String[0]));
+	}
+
+	public Tr findBestRowInTable(Tbl table, String... keys) {
+		return findBestRowInTable(table, Set.of(), keys);
 	}
 
 	public Tr findBestRowInTable(Tbl table, Set<String> allVariables, Collection<String> keys) {

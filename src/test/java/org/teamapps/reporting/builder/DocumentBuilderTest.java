@@ -133,6 +133,15 @@ public class DocumentBuilderTest {
 		return sb.substring(0,sb.length()-3);
 	}
 
+	private void assertTableRows(MainDocumentPart document, String tableKey, List<String> expected) {
+		DocumentBuilder builder = new DocumentBuilder();
+		Tbl table = builder.findTable(document, List.of(tableKey));
+		assertNotNull("Missing table " + tableKey, table);
+		List<String> actual = builder.getAllElements(table, new Tr()).stream().map(this::getContent).toList();
+		assertEquals("Row count for " + tableKey, expected.size(), actual.size());
+		assertEquals("Row contents and order for " + tableKey, expected, actual);
+	}
+
 	private String checkTable(MainDocumentPart document, TableBuilder tableBuilder, String tableKey) {
 		DocumentBuilder documentBuilder = new DocumentBuilder();
 		Tbl table1 = documentBuilder.findTable(document, List.of(tableKey));
@@ -155,7 +164,8 @@ public class DocumentBuilderTest {
 		 String templatePath = "templates/exampleReport.docx";
 
 		 InputStream reportTemplateInput = DocumentBuilderTest.class.getResourceAsStream(templatePath);
-		 ReportBuilder reportBuilder = ReportBuilder.create(DocumentFormat.DOCX, reportTemplateInput);
+		 ReportBuilder reportBuilder = ReportBuilder.create(DocumentFormat.DOCX, reportTemplateInput)
+			 .setTemplateRowSelectionMode(TemplateRowSelectionMode.FAIL);
 
 		 SimpleDateFormat sdf = (SimpleDateFormat)SimpleDateFormat.getDateInstance(DateFormat.SHORT, printLocale);
 		 DateTimeFormatter simpleDateFormat = DateTimeFormatter.ofPattern(sdf.toPattern());
@@ -178,6 +188,20 @@ public class DocumentBuilderTest {
 		 MainDocumentPart result = DocumentTemplateLoader.getTemplate(resultInput).getMainDocumentPart();
 
 		 assertNull(checkTable(result, table1Builder, "Version 1"));
+         assertTableRows(result, "Version 1", List.of(
+                 "Version 1 | ",
+                 "Produkt | Kostenart | Währung | Betrag | Betrag EUR",
+                 "chocolate | 15 | USD | 13,20 | 12,70 €",
+                 "flowers | 7 | USD | 25,99 | 25,01 €",
+                 "ice cream | 23 | USD | 7,50 | 7,22 €",
+                 "Summe |  |  | 46,69 | 44,94 €",
+                 " |  |  |  | ",
+                 "chocolate | 15 | CHF | 13,20 | 13,98 €",
+                 "flowers | 7 | CHF | 25,99 | 27,53 €",
+                 "ice cream | 23 | CHF | 7,50 | 7,94 €",
+                 "Summe |  |  | 46,69 | 49,46 €",
+                 " |  |  |  | ",
+                 "Total |  |  |  | 94,40 €"));
 		 DocumentBuilder documentBuilder = new DocumentBuilder();
 		 assertNull(documentBuilder.findTable(result, List.of("<ExampleTable3>")));
 	 }
@@ -187,7 +211,8 @@ public class DocumentBuilderTest {
 		 String templatePath = "templates/exampleReport.docx";
 
 		 InputStream reportTemplateInput = DocumentBuilderTest.class.getResourceAsStream(templatePath);
-		 ReportBuilder reportBuilder = ReportBuilder.create(DocumentFormat.DOCX, reportTemplateInput);
+		 ReportBuilder reportBuilder = ReportBuilder.create(DocumentFormat.DOCX, reportTemplateInput)
+			 .setTemplateRowSelectionMode(TemplateRowSelectionMode.SKIP);
 
 		 SimpleDateFormat sdf = (SimpleDateFormat)SimpleDateFormat.getDateInstance(DateFormat.SHORT, printLocale);
 		 DateTimeFormatter simpleDateFormat = DateTimeFormatter.ofPattern(sdf.toPattern());
@@ -210,6 +235,20 @@ public class DocumentBuilderTest {
 		 MainDocumentPart result = DocumentTemplateLoader.getTemplate(resultInput).getMainDocumentPart();
 
 		 assertNull(checkTable(result, table2Builder, "Version 2"));
+         // This template has no total row: SKIP must omit only that input row.
+         assertTableRows(result, "Version 2", List.of(
+                 "Version 2",
+                 "Produkt | Kunde | Währung | Betrag",
+                 "chocolate | Henry | USD | 13,20",
+                 "flowers | Susan | USD | 25,99",
+                 "ice cream | Peggy | USD | 7,50",
+                 "Summe |  | USD | 46,69",
+                 " |  |  | ",
+                 "chocolate | for Henry | CHF | 13,20",
+                 "flowers | for Susan | CHF | 25,99",
+                 "ice cream | for Peggy | CHF | 7,50",
+                 "Summe |  | CHF | 46,69",
+                 " |  |  | "));
 		 DocumentBuilder documentBuilder = new DocumentBuilder();
 		 assertNull(documentBuilder.findTable(result, List.of("<ExampleTable3>")));
 	 }
