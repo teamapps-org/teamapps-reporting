@@ -114,6 +114,17 @@ public class DocumentBuilder {
 	}
 
 	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable) throws Exception {
+		fillTable(textToAdd, removeTemplateRows, template, strictMode, keys, copyTable, TemplateRowSelectionMode.NO_VARIABLE_CHECK);
+	}
+
+	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable, TemplateRowSelectionMode mode) throws Exception {
+		fillTable(textToAdd, removeTemplateRows, template, strictMode, keys, copyTable, mode, diagnostic -> {});
+	}
+
+	/** Emits immutable diagnostics synchronously; listener exceptions propagate. */
+	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable, TemplateRowSelectionMode mode, java.util.function.Consumer<ReportDiagnostic> diagnosticListener) throws Exception {
+		Objects.requireNonNull(diagnosticListener, "diagnosticListener");
+		Objects.requireNonNull(mode, "mode");
 		Tbl matchingTable = findTable(template.getMainDocumentPart(), keys);
 		if (strictMode && matchingTable == null) {
 			throw new Exception("Error: missing template table for keys" + String.join(", ", keys));
@@ -135,17 +146,35 @@ public class DocumentBuilder {
 				matchingTable = tableCopy;
 			}
 
-			for (Map<String, String> replaceMap : textToAdd) {
+			Set<String> allVariables = textToAdd.stream().flatMap(row -> row.keySet().stream()).collect(Collectors.toSet());
+			for (int inputRowIndex = 0; inputRowIndex < textToAdd.size(); inputRowIndex++) {
+				Map<String, String> replaceMap = textToAdd.get(inputRowIndex);
 				Tr templateRow = templateRowByColumnsSet.get(replaceMap.keySet());
 				if (templateRow == null) {
-					templateRow = findBestRowInTable(matchingTable, replaceMap.keySet());
+					templateRow = selectTemplateRow(matchingTable, allVariables, replaceMap.keySet(), mode);
 					templateRowByColumnsSet.put(replaceMap.keySet(), templateRow);
 				}
 				if (templateRow == null) {
-					if (strictMode) {
-						throw new Exception("Error: missing template row for keys" + String.join(", ", replaceMap.keySet()));
+					if (mode == TemplateRowSelectionMode.FAIL || mode == TemplateRowSelectionMode.USE_BEST_MATCH
+							|| (mode == TemplateRowSelectionMode.NO_VARIABLE_CHECK && strictMode)) {
+						ReportDiagnostic diagnostic = new ReportDiagnostic(DiagnosticCode.NO_MATCHING_TEMPLATE_ROW,
+								keys, inputRowIndex, replaceMap.keySet(), Set.of());
+						diagnosticListener.accept(diagnostic);
+						throw new ReportGenerationException(diagnostic);
 					} else {
+						diagnosticListener.accept(new ReportDiagnostic(DiagnosticCode.INPUT_ROW_SKIPPED,
+								keys, inputRowIndex, replaceMap.keySet(), Set.of()));
 						continue;
+					}
+				}
+				if (mode == TemplateRowSelectionMode.USE_BEST_MATCH) {
+					Set<String> unresolved = new HashSet<>(allVariables);
+					unresolved.removeAll(replaceMap.keySet());
+					Tr selectedRow = templateRow;
+					unresolved.removeIf(key -> getParagraphWithText(selectedRow, key) == null);
+					if (!unresolved.isEmpty()) {
+						diagnosticListener.accept(new ReportDiagnostic(DiagnosticCode.INCOMPLETE_TEMPLATE_ROW_USED,
+								keys, inputRowIndex, replaceMap.keySet(), unresolved));
 					}
 				}
 				removeSet.add(templateRow);
@@ -157,7 +186,7 @@ public class DocumentBuilder {
 			}
 
 			for (List<String> removeTemplateRow : removeTemplateRows) {
-				Tr templateRow = findBestRowInTable(matchingTable, removeTemplateRow);
+				Tr templateRow = findBestRowInTable(matchingTable, Set.of(), removeTemplateRow);
 				removeSet.add(templateRow);
 			}
 
@@ -395,16 +424,61 @@ public class DocumentBuilder {
 		}
 	}
 
+	private Tr selectTemplateRow(Tbl table, Set<String> allVariables, Collection<String> keys, TemplateRowSelectionMode mode) {
+		if (mode == TemplateRowSelectionMode.NO_VARIABLE_CHECK) {
+			return findBestRowInTable(table, keys);
+		}
+		Tr complete = findBestRowInTable(table, allVariables, keys);
+		if (complete != null || mode != TemplateRowSelectionMode.USE_BEST_MATCH) {
+			return complete;
+		}
+		Set<String> missing = new HashSet<>(allVariables);
+		missing.removeAll(keys);
+		Tr best = null;
+		int fewestOpen = Integer.MAX_VALUE;
+		int mostMatches = 0;
+		for (Tr row : getAllElements(table, new Tr())) {
+			int matches = (int) keys.stream().filter(key -> getParagraphWithText(row, key) != null).count();
+			int open = (int) missing.stream().filter(key -> getParagraphWithText(row, key) != null).count();
+			if (matches > 0 && (open < fewestOpen || (open == fewestOpen && matches > mostMatches))) {
+				best = row;
+				fewestOpen = open;
+				mostMatches = matches;
+			}
+		}
+		return best;
+	}
+
 	public Tr findBestRowInTable(Tbl table, Collection<String> keys) {
-		return findBestRowInTable(table, keys.toArray(new String[0]));
+		return findBestRowInTable(table, Set.of(), keys.toArray(new String[0]));
 	}
 
 	public Tr findBestRowInTable(Tbl table, String... keys) {
+		return findBestRowInTable(table, Set.of(), keys);
+	}
+
+	public Tr findBestRowInTable(Tbl table, Set<String> allVariables, Collection<String> keys) {
+		Set<String> variablesWithoutReplacement = new HashSet<>(allVariables);
+		variablesWithoutReplacement.removeAll(keys);
+		return findBestRowInTable(table, variablesWithoutReplacement, keys.toArray(new String[0]));
+	}
+
+	public Tr findBestRowInTable(Tbl table, Set<String> missingVariables, String... keys) {
 		List<Tr> rows = getAllElements(table, new Tr());
 		int bestHitScore = 0;
 		Tr bestRow = null;
 		for (Tr row : rows) {
+			int missing = 0;
 			int score = 0;
+
+			for (String key : missingVariables) {
+				if (getParagraphWithText(row, key) != null) {
+					missing++;
+				}
+			}
+			if (missing > 0) {
+				continue;
+			}
 			for (String key : keys) {
 				if (getParagraphWithText(row, key) != null) {
 					score++;

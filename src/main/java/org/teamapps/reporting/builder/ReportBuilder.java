@@ -45,6 +45,8 @@ public class ReportBuilder {
 	private final DocumentFormat inputFormat;
 	private final InputStream inputStream;
 	private final boolean strictMode;
+	private TemplateRowSelectionMode templateRowSelectionMode;
+	private java.util.function.Consumer<ReportDiagnostic> diagnosticListener = diagnostic -> {};
 	private File outputFile;
 	private Map<String, String> replacementMap = new HashMap();
 	private List<TableBuilder> tableBuilders = new ArrayList<>();
@@ -52,9 +54,29 @@ public class ReportBuilder {
 	private List<String> removeParagraphs = new ArrayList<>();
 
 	public ReportBuilder(DocumentFormat inputFormat, InputStream inputStream, boolean strictMode) {
+		this(inputFormat, inputStream, strictMode, TemplateRowSelectionMode.NO_VARIABLE_CHECK);
+	}
+
+	public ReportBuilder(DocumentFormat inputFormat, InputStream inputStream, boolean strictMode, TemplateRowSelectionMode templateRowSelectionMode) {
 		this.inputFormat = inputFormat;
 		this.inputStream = inputStream;
 		this.strictMode = strictMode;
+		this.templateRowSelectionMode = Objects.requireNonNull(templateRowSelectionMode, "templateRowSelectionMode");
+	}
+
+	/** Sets the row selection policy; defaults to the original selection behavior. */
+	public ReportBuilder setTemplateRowSelectionMode(TemplateRowSelectionMode mode) {
+		this.templateRowSelectionMode = Objects.requireNonNull(mode, "mode");
+		return this;
+	}
+
+	/** Receives diagnostics synchronously on the generation thread, once per affected input row.
+	 * No listener is called for successful complete selections or legacy variable checks.
+	 * Listener exceptions propagate to the caller and abort generation.
+	 */
+	public ReportBuilder setDiagnosticListener(java.util.function.Consumer<ReportDiagnostic> listener) {
+		this.diagnosticListener = Objects.requireNonNull(listener, "listener");
+		return this;
 	}
 
 	public void setOutputFile(File outputFile) {
@@ -133,7 +155,7 @@ public class ReportBuilder {
 		}
 
 		for (TableBuilder tableBuilder : tableBuilders) {
-			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys(), tableBuilder.isCopyTable());
+			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys(), tableBuilder.isCopyTable(), templateRowSelectionMode, diagnosticListener);
 		}
 
 		for (TableBuilder removeTable : removeTables) {
