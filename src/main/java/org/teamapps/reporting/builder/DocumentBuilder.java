@@ -118,6 +118,12 @@ public class DocumentBuilder {
 	}
 
 	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable, TemplateRowSelectionMode mode) throws Exception {
+		fillTable(textToAdd, removeTemplateRows, template, strictMode, keys, copyTable, mode, diagnostic -> {});
+	}
+
+	/** Emits immutable diagnostics synchronously; listener exceptions propagate. */
+	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable, TemplateRowSelectionMode mode, java.util.function.Consumer<ReportDiagnostic> diagnosticListener) throws Exception {
+		Objects.requireNonNull(diagnosticListener, "diagnosticListener");
 		Objects.requireNonNull(mode, "mode");
 		Tbl matchingTable = findTable(template.getMainDocumentPart(), keys);
 		if (strictMode && matchingTable == null) {
@@ -141,7 +147,8 @@ public class DocumentBuilder {
 			}
 
 			Set<String> allVariables = textToAdd.stream().flatMap(row -> row.keySet().stream()).collect(Collectors.toSet());
-			for (Map<String, String> replaceMap : textToAdd) {
+			for (int inputRowIndex = 0; inputRowIndex < textToAdd.size(); inputRowIndex++) {
+				Map<String, String> replaceMap = textToAdd.get(inputRowIndex);
 				Tr templateRow = templateRowByColumnsSet.get(replaceMap.keySet());
 				if (templateRow == null) {
 					templateRow = selectTemplateRow(matchingTable, allVariables, replaceMap.keySet(), mode);
@@ -150,9 +157,24 @@ public class DocumentBuilder {
 				if (templateRow == null) {
 					if (mode == TemplateRowSelectionMode.FAIL || mode == TemplateRowSelectionMode.USE_BEST_MATCH
 							|| (mode == TemplateRowSelectionMode.NO_VARIABLE_CHECK && strictMode)) {
-						throw new Exception("Error: missing template row for keys" + String.join(", ", replaceMap.keySet()));
+						ReportDiagnostic diagnostic = new ReportDiagnostic(DiagnosticCode.NO_MATCHING_TEMPLATE_ROW,
+								keys, inputRowIndex, replaceMap.keySet(), Set.of());
+						diagnosticListener.accept(diagnostic);
+						throw new ReportGenerationException(diagnostic);
 					} else {
+						diagnosticListener.accept(new ReportDiagnostic(DiagnosticCode.INPUT_ROW_SKIPPED,
+								keys, inputRowIndex, replaceMap.keySet(), Set.of()));
 						continue;
+					}
+				}
+				if (mode == TemplateRowSelectionMode.USE_BEST_MATCH) {
+					Set<String> unresolved = new HashSet<>(allVariables);
+					unresolved.removeAll(replaceMap.keySet());
+					Tr selectedRow = templateRow;
+					unresolved.removeIf(key -> getParagraphWithText(selectedRow, key) == null);
+					if (!unresolved.isEmpty()) {
+						diagnosticListener.accept(new ReportDiagnostic(DiagnosticCode.INCOMPLETE_TEMPLATE_ROW_USED,
+								keys, inputRowIndex, replaceMap.keySet(), unresolved));
 					}
 				}
 				removeSet.add(templateRow);

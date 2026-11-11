@@ -118,4 +118,83 @@ public class TemplateRowSelectionModeTest {
         }
     }
 
+    @Test public void diagnosticsDescribeEveryAffectedRowIncludingCachedSelections() throws Exception {
+        for (TemplateRowSelectionMode mode : TemplateRowSelectionMode.values()) {
+            List<ReportDiagnostic> diagnostics = new ArrayList<>();
+            WordprocessingMLPackage document = template("table <A><D>", "<D><E>");
+            List<Map<String, String>> input = List.of(Map.of("<A>", "first"),
+                    Map.of("<A>", "second"), Map.of("<D>", "d", "<E>", "e"));
+            if (mode == TemplateRowSelectionMode.FAIL) {
+                ReportGenerationException error = assertThrows(ReportGenerationException.class,
+                        () -> builder.fillTable(input, List.of(), document, false, List.of("table"),
+                                false, mode, diagnostics::add));
+                assertEquals(1, diagnostics.size());
+                assertSame(diagnostics.get(0), error.getDiagnostic());
+                assertEquals(DiagnosticCode.NO_MATCHING_TEMPLATE_ROW, error.getDiagnostic().code());
+                assertEquals(0, error.getDiagnostic().inputRowIndex());
+            } else {
+                builder.fillTable(input, List.of(), document, true, List.of("table"), false, mode, diagnostics::add);
+                if (mode == TemplateRowSelectionMode.NO_VARIABLE_CHECK) {
+                    assertTrue(diagnostics.isEmpty());
+                    continue;
+                }
+                assertEquals(2, diagnostics.size());
+                for (int i = 0; i < 2; i++) {
+                    assertEquals(new ReportDiagnostic(mode == TemplateRowSelectionMode.SKIP
+                                    ? DiagnosticCode.INPUT_ROW_SKIPPED : DiagnosticCode.INCOMPLETE_TEMPLATE_ROW_USED,
+                            List.of("table"), i, Set.of("<A>"), mode == TemplateRowSelectionMode.SKIP
+                                    ? Set.of() : Set.of("<D>")), diagnostics.get(i));
+                }
+            }
+        }
+    }
+
+    @Test public void completeSelectionDoesNotEmitDiagnostics() throws Exception {
+        List<ReportDiagnostic> diagnostics = new ArrayList<>();
+        builder.fillTable(List.of(Map.of("<A>", "a")), List.of(), template("<A>"), false,
+                List.of(), false, TemplateRowSelectionMode.FAIL, diagnostics::add);
+        assertTrue(diagnostics.isEmpty());
+    }
+
+    @Test public void reportBuilderForwardsDiagnosticsAndListenerFailures() throws Exception {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        template("table <A><D>", "<D><E>").save(bytes);
+        List<ReportDiagnostic> diagnostics = new ArrayList<>();
+        ReportBuilder report = new ReportBuilder(org.teamapps.reporting.convert.DocumentFormat.DOCX,
+                new java.io.ByteArrayInputStream(bytes.toByteArray()), false, TemplateRowSelectionMode.SKIP)
+                .setDiagnosticListener(diagnostics::add);
+        TableBuilder table = report.createTableBuilder("table");
+        table.addRow().setColumnValue("<A>", "a");
+        table.addRow().setColumnValue("<D>", "d").setColumnValue("<E>", "e");
+        java.io.File output = report.build();
+        try {
+            assertEquals(List.of(new ReportDiagnostic(DiagnosticCode.INPUT_ROW_SKIPPED,
+                    List.of("table"), 0, Set.of("<A>"), Set.of())), diagnostics);
+        } finally {
+            java.nio.file.Files.deleteIfExists(output.toPath());
+        }
+        RuntimeException failure = new RuntimeException("listener failure");
+        RuntimeException actual = assertThrows(RuntimeException.class, () -> builder.fillTable(
+                List.of(Map.of("<A>", "a")), List.of(), template("no match"), false,
+                List.of(), false, TemplateRowSelectionMode.SKIP, diagnostic -> { throw failure; }));
+        assertSame(failure, actual);
+    }
+
+    @Test public void diagnosticsAreImmutableSnapshots() {
+        List<String> tableKeys = new ArrayList<>(List.of("table"));
+        Set<String> keys = new HashSet<>(Set.of("A"));
+        Set<String> unresolved = new HashSet<>(Set.of("D"));
+        ReportDiagnostic diagnostic = new ReportDiagnostic(DiagnosticCode.INCOMPLETE_TEMPLATE_ROW_USED,
+                tableKeys, 2, keys, unresolved);
+        tableKeys.clear();
+        keys.clear();
+        unresolved.clear();
+        assertEquals(List.of("table"), diagnostic.tableKeys());
+        assertEquals(Set.of("A"), diagnostic.replacementKeys());
+        assertEquals(Set.of("D"), diagnostic.unresolvedVariables());
+        assertThrows(UnsupportedOperationException.class, () -> diagnostic.tableKeys().clear());
+        assertThrows(UnsupportedOperationException.class, () -> diagnostic.replacementKeys().clear());
+        assertThrows(UnsupportedOperationException.class, () -> diagnostic.unresolvedVariables().clear());
+    }
+
 }

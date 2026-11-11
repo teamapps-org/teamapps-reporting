@@ -46,6 +46,7 @@ public class ReportBuilder {
 	private final InputStream inputStream;
 	private final boolean strictMode;
 	private TemplateRowSelectionMode templateRowSelectionMode;
+	private java.util.function.Consumer<ReportDiagnostic> diagnosticListener = diagnostic -> {};
 	private File outputFile;
 	private Map<String, String> replacementMap = new HashMap();
 	private List<TableBuilder> tableBuilders = new ArrayList<>();
@@ -66,6 +67,15 @@ public class ReportBuilder {
 	/** Sets the row selection policy; defaults to the original selection behavior. */
 	public ReportBuilder setTemplateRowSelectionMode(TemplateRowSelectionMode mode) {
 		this.templateRowSelectionMode = Objects.requireNonNull(mode, "mode");
+		return this;
+	}
+
+	/** Receives diagnostics synchronously on the generation thread, once per affected input row.
+	 * No listener is called for successful complete selections or legacy variable checks.
+	 * Listener exceptions propagate to the caller and abort generation.
+	 */
+	public ReportBuilder setDiagnosticListener(java.util.function.Consumer<ReportDiagnostic> listener) {
+		this.diagnosticListener = Objects.requireNonNull(listener, "listener");
 		return this;
 	}
 
@@ -145,7 +155,7 @@ public class ReportBuilder {
 		}
 
 		for (TableBuilder tableBuilder : tableBuilders) {
-			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys(), tableBuilder.isCopyTable(), templateRowSelectionMode);
+			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys(), tableBuilder.isCopyTable(), templateRowSelectionMode, diagnosticListener);
 		}
 
 		for (TableBuilder removeTable : removeTables) {
