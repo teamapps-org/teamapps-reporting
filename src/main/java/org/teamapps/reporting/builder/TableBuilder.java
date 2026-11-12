@@ -58,6 +58,11 @@ public class TableBuilder {
 		return rowsReplacementMap;
 	}
 
+	/** Returns an immutable copy of the currently prepared table, including nested maps. */
+	public TableDefinition getDefinition() {
+		return new TableDefinition(keys, copyTable, createReplacementMap(), removeUnusedTemplateRows);
+	}
+
 	public TableBuilder removeUnusedTemplateRow(String ... keys) {
 		removeUnusedTemplateRows.add(Arrays.asList(keys));
 		return this;

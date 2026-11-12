@@ -94,6 +94,16 @@ public class ReportBuilder {
 
 
 
+	/** Returns a detached, deeply immutable snapshot without reading the template or building
+	 * a document. Later builder changes do not affect earlier snapshots. Like the builder,
+	 * snapshot creation must not run concurrently with modifications to this builder.
+	 */
+	public ReportDefinition getDefinition() {
+		return new ReportDefinition(inputFormat, strictMode, replacementMap,
+				tableBuilders.stream().map(TableBuilder::getDefinition).toList(),
+				removeTables.stream().map(TableBuilder::getKeys).toList(), removeParagraphs);
+	}
+
 	public File build() throws Exception {
 		if (inputFormat != DocumentFormat.DOCX) {
 			UnsupportedFormatException.throwException(inputFormat);
