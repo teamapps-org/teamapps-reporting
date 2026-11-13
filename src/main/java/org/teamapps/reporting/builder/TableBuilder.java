@@ -40,6 +40,18 @@ public class TableBuilder {
 		return rowBuilder;
 	}
 
+	/** Adds an input row with its own selection mode, overriding the report-wide default. */
+	public RowBuilder addRow(TemplateRowSelectionMode mode) {
+		RowBuilder rowBuilder = new RowBuilder(mode);
+		rowBuilders.add(rowBuilder);
+		return rowBuilder;
+	}
+
+	List<TemplateRowSelectionMode> getRowSelectionModes(TemplateRowSelectionMode defaultMode) {
+		return rowBuilders.stream().map(row -> row.getTemplateRowSelectionMode() != null
+				? row.getTemplateRowSelectionMode() : defaultMode).toList();
+	}
+
 	public List<String> getKeys() {
 		return keys;
 	}

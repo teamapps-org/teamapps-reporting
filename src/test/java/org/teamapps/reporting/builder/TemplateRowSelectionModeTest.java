@@ -9,6 +9,84 @@ import static org.junit.Assert.*;
 public class TemplateRowSelectionModeTest {
     private final DocumentBuilder builder = new DocumentBuilder();
 
+    private ReportBuilder report(TemplateRowSelectionMode mode, String... rows) throws Exception {
+        java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+        template(rows).save(bytes);
+        return new ReportBuilder(org.teamapps.reporting.convert.DocumentFormat.DOCX,
+                new java.io.ByteArrayInputStream(bytes.toByteArray()), false, mode);
+    }
+
+    private List<String> buildRows(ReportBuilder report) throws Exception {
+        java.io.File output = report.build();
+        try {
+            WordprocessingMLPackage document = WordprocessingMLPackage.load(output);
+            return builder.getAllElements(document.getMainDocumentPart(), new Tr()).stream()
+                    .map(row -> builder.getAllElements(row, new Text()).stream()
+                            .map(Text::getValue).reduce("", String::concat)).toList();
+        } finally {
+            java.nio.file.Files.deleteIfExists(output.toPath());
+        }
+    }
+
+    @Test public void optionalSubtotalCanBeSkippedWhileRequiredDetailsArePreserved() throws Exception {
+        ReportBuilder report = report(TemplateRowSelectionMode.FAIL, "table <A>");
+        List<ReportDiagnostic> diagnostics = new ArrayList<>();
+        report.setDiagnosticListener(diagnostics::add);
+        TableBuilder table = report.createTableBuilder("table");
+        table.addRow(TemplateRowSelectionMode.FAIL).setColumnValue("<A>", "first");
+        table.addRow(TemplateRowSelectionMode.SKIP).setColumnValue("<sum>", "total");
+        table.addRow().setColumnValue("<A>", "second");
+        assertEquals(List.of("table first", "table second"), buildRows(report));
+        assertEquals(List.of(new ReportDiagnostic(DiagnosticCode.INPUT_ROW_SKIPPED,
+                List.of("table"), 1, Set.of("<sum>"), Set.of())), diagnostics);
+    }
+
+    @Test public void requiredDetailOverridesGlobalSkip() throws Exception {
+        ReportBuilder report = report(TemplateRowSelectionMode.SKIP, "table <A><D>", "known <D><E>");
+        TableBuilder table = report.createTableBuilder("table");
+        table.addRow(TemplateRowSelectionMode.FAIL).setColumnValue("<A>", "detail");
+        table.addRow().setColumnValue("<D>", "d").setColumnValue("<E>", "e");
+        ReportGenerationException failure = assertThrows(ReportGenerationException.class, report::build);
+        assertEquals(DiagnosticCode.NO_MATCHING_TEMPLATE_ROW, failure.getDiagnostic().code());
+        assertEquals(0, failure.getDiagnostic().inputRowIndex());
+    }
+
+    @Test public void sameKeysWithDifferentModesDoNotShareTemplateSelection() throws Exception {
+        ReportBuilder report = report(TemplateRowSelectionMode.FAIL, "table <A><D>", "known <D><E>");
+        List<ReportDiagnostic> diagnostics = new ArrayList<>();
+        report.setDiagnosticListener(diagnostics::add);
+        TableBuilder table = report.createTableBuilder("table");
+        table.addRow(TemplateRowSelectionMode.NO_VARIABLE_CHECK).setColumnValue("<A>", "legacy");
+        table.addRow(TemplateRowSelectionMode.SKIP).setColumnValue("<A>", "skip");
+        table.addRow(TemplateRowSelectionMode.USE_BEST_MATCH).setColumnValue("<A>", "fallback");
+        table.addRow().setColumnValue("<D>", "d").setColumnValue("<E>", "e");
+        assertEquals(List.of("table legacy<D>", "table fallback<D>", "known de"), buildRows(report));
+        assertEquals(List.of(
+                new ReportDiagnostic(DiagnosticCode.INPUT_ROW_SKIPPED, List.of("table"), 1, Set.of("<A>"), Set.of()),
+                new ReportDiagnostic(DiagnosticCode.INCOMPLETE_TEMPLATE_ROW_USED, List.of("table"), 2,
+                        Set.of("<A>"), Set.of("<D>"))), diagnostics);
+    }
+
+    @Test public void requiredDetailCannotReuseCachedLegacyMatch() throws Exception {
+        ReportBuilder report = report(TemplateRowSelectionMode.SKIP, "table <A><D>", "known <D><E>");
+        TableBuilder table = report.createTableBuilder("table");
+        table.addRow(TemplateRowSelectionMode.NO_VARIABLE_CHECK).setColumnValue("<A>", "legacy");
+        table.addRow(TemplateRowSelectionMode.FAIL).setColumnValue("<A>", "required");
+        table.addRow().setColumnValue("<D>", "d").setColumnValue("<E>", "e");
+        ReportGenerationException failure = assertThrows(ReportGenerationException.class, report::build);
+        assertEquals(1, failure.getDiagnostic().inputRowIndex());
+        assertEquals(Set.of("<A>"), failure.getDiagnostic().replacementKeys());
+    }
+
+    @Test public void rowsWithoutOverrideUseTheCurrentGlobalDefault() throws Exception {
+        ReportBuilder report = report(TemplateRowSelectionMode.NO_VARIABLE_CHECK, "table <A><D>", "known <D><E>");
+        TableBuilder table = report.createTableBuilder("table");
+        table.addRow().setColumnValue("<A>", "required");
+        table.addRow().setColumnValue("<D>", "d").setColumnValue("<E>", "e");
+        report.setTemplateRowSelectionMode(TemplateRowSelectionMode.FAIL);
+        assertThrows(ReportGenerationException.class, report::build);
+    }
+
     private WordprocessingMLPackage template(String... rows) throws Exception {
         WordprocessingMLPackage document = WordprocessingMLPackage.createPackage();
         Tbl table = new Tbl();

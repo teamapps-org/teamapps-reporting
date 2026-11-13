@@ -155,7 +155,7 @@ public class ReportBuilder {
 		}
 
 		for (TableBuilder tableBuilder : tableBuilders) {
-			documentBuilder.fillTable(tableBuilder.createReplacementMap(), tableBuilder.getRemoveUnusedTemplateRows(), template, strictMode, tableBuilder.getKeys(), tableBuilder.isCopyTable(), templateRowSelectionMode, diagnosticListener);
+			documentBuilder.fillTable(tableBuilder, template, strictMode, templateRowSelectionMode, diagnosticListener);
 		}
 
 		for (TableBuilder removeTable : removeTables) {

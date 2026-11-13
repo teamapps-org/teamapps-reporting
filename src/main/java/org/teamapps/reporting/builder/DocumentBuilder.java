@@ -123,6 +123,21 @@ public class DocumentBuilder {
 
 	/** Emits immutable diagnostics synchronously; listener exceptions propagate. */
 	public void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows, WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable, TemplateRowSelectionMode mode, java.util.function.Consumer<ReportDiagnostic> diagnosticListener) throws Exception {
+		fillTable(textToAdd, removeTemplateRows, template, strictMode, keys, copyTable, mode,
+				diagnosticListener, Collections.nCopies(textToAdd.size(), mode));
+	}
+
+	/** Fills a table using each input row's override, or the report-wide default. */
+	public void fillTable(TableBuilder table, WordprocessingMLPackage template, boolean strictMode,
+			TemplateRowSelectionMode defaultMode, java.util.function.Consumer<ReportDiagnostic> diagnosticListener) throws Exception {
+		fillTable(table.createReplacementMap(), table.getRemoveUnusedTemplateRows(), template, strictMode,
+				table.getKeys(), table.isCopyTable(), defaultMode, diagnosticListener, table.getRowSelectionModes(defaultMode));
+	}
+
+	private void fillTable(List<Map<String, String>> textToAdd, List<List<String>> removeTemplateRows,
+			WordprocessingMLPackage template, boolean strictMode, List<String> keys, boolean copyTable,
+			TemplateRowSelectionMode mode, java.util.function.Consumer<ReportDiagnostic> diagnosticListener,
+			List<TemplateRowSelectionMode> rowModes) throws Exception {
 		Objects.requireNonNull(diagnosticListener, "diagnosticListener");
 		Objects.requireNonNull(mode, "mode");
 		Tbl matchingTable = findTable(template.getMainDocumentPart(), keys);
@@ -130,7 +145,7 @@ public class DocumentBuilder {
 			throw new Exception("Error: missing template table for keys" + String.join(", ", keys));
 		}
 
-		Map<Set<String>, Tr> templateRowByColumnsSet = new HashMap<>();
+		Map<RowSelectionKey, Tr> templateRowByColumnsSet = new HashMap<>();
 		Set<Tr> removeSet = new HashSet<>();
 		if (matchingTable != null) {
 
@@ -149,14 +164,16 @@ public class DocumentBuilder {
 			Set<String> allVariables = textToAdd.stream().flatMap(row -> row.keySet().stream()).collect(Collectors.toSet());
 			for (int inputRowIndex = 0; inputRowIndex < textToAdd.size(); inputRowIndex++) {
 				Map<String, String> replaceMap = textToAdd.get(inputRowIndex);
-				Tr templateRow = templateRowByColumnsSet.get(replaceMap.keySet());
-				if (templateRow == null) {
-					templateRow = selectTemplateRow(matchingTable, allVariables, replaceMap.keySet(), mode);
-					templateRowByColumnsSet.put(replaceMap.keySet(), templateRow);
+				TemplateRowSelectionMode rowMode = rowModes.get(inputRowIndex);
+				RowSelectionKey selectionKey = new RowSelectionKey(Set.copyOf(replaceMap.keySet()), rowMode);
+				Tr templateRow = templateRowByColumnsSet.get(selectionKey);
+				if (!templateRowByColumnsSet.containsKey(selectionKey)) {
+					templateRow = selectTemplateRow(matchingTable, allVariables, replaceMap.keySet(), rowMode);
+					templateRowByColumnsSet.put(selectionKey, templateRow);
 				}
 				if (templateRow == null) {
-					if (mode == TemplateRowSelectionMode.FAIL || mode == TemplateRowSelectionMode.USE_BEST_MATCH
-							|| (mode == TemplateRowSelectionMode.NO_VARIABLE_CHECK && strictMode)) {
+					if (rowMode == TemplateRowSelectionMode.FAIL || rowMode == TemplateRowSelectionMode.USE_BEST_MATCH
+							|| (rowMode == TemplateRowSelectionMode.NO_VARIABLE_CHECK && strictMode)) {
 						ReportDiagnostic diagnostic = new ReportDiagnostic(DiagnosticCode.NO_MATCHING_TEMPLATE_ROW,
 								keys, inputRowIndex, replaceMap.keySet(), Set.of());
 						diagnosticListener.accept(diagnostic);
@@ -167,7 +184,7 @@ public class DocumentBuilder {
 						continue;
 					}
 				}
-				if (mode == TemplateRowSelectionMode.USE_BEST_MATCH) {
+				if (rowMode == TemplateRowSelectionMode.USE_BEST_MATCH) {
 					Set<String> unresolved = new HashSet<>(allVariables);
 					unresolved.removeAll(replaceMap.keySet());
 					Tr selectedRow = templateRow;
@@ -423,6 +440,8 @@ public class DocumentBuilder {
 			}
 		}
 	}
+
+	private record RowSelectionKey(Set<String> keys, TemplateRowSelectionMode mode) {}
 
 	private Tr selectTemplateRow(Tbl table, Set<String> allVariables, Collection<String> keys, TemplateRowSelectionMode mode) {
 		if (mode == TemplateRowSelectionMode.NO_VARIABLE_CHECK) {

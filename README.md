@@ -68,6 +68,43 @@ in strict mode and is ignored otherwise. For row selection, `FAIL`, `USE_BEST_MA
 and `SKIP` apply independently of strict mode. Only `NO_VARIABLE_CHECK` retains the
 original strict-mode handling when no row has any matching key.
 
+### Per-row selection modes
+
+The report-wide mode is a default. Use `addRow(mode)` to override it for one input
+row, for example to require transaction rows while allowing a template to omit subtotals:
+
+```java
+ReportBuilder report = ReportBuilder.create(DocumentFormat.DOCX, templateInput)
+        .setTemplateRowSelectionMode(TemplateRowSelectionMode.FAIL);
+TableBuilder table = report.createTableBuilder("<transactions>");
+
+table.addRow(TemplateRowSelectionMode.FAIL)
+        .setColumnValue("<account>", "Donation")
+        .setColumnValue("<amount>", "100.00");
+
+table.addRow(TemplateRowSelectionMode.SKIP)
+        .setColumnValue("<subtotal>", "Subtotal")
+        .setColumnValue("<amount>", "100.00");
+
+// No override: inherit the current report-wide mode at generation time.
+table.addRow().setColumnValue("<total>", "100.00");
+```
+
+If no acceptable transaction template row exists, `FAIL` aborts generation even if
+the global default is `SKIP`. A subtotal marked `SKIP` can be omitted even with a
+global default of `FAIL`. `USE_BEST_MATCH` and `NO_VARIABLE_CHECK` can also be selected
+per row. An explicit mode must not be null; use `addRow()` to inherit the default.
+
+The effective row mode also determines diagnostics and the handling of a missing
+row. `strictMode` still controls missing tables and the legacy no-match behavior
+when the effective mode is `NO_VARIABLE_CHECK`. Diagnostic row indices continue
+to refer to the original input order, including skipped rows.
+
+Known variables still come from all input rows of the table, including optional
+rows. A mode override does not define a new variable scope. Skipping a row means
+no acceptable template row was selected; it does not remove unused template rows
+automatically. Use `removeUnusedTemplateRow(...)` for unused template variants.
+
 ### Example: choosing between template rows
 
 Suppose the current input row supplies `<A>`, `<B>` and `<C>`. Another input row

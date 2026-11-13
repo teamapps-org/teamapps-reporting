@@ -21,12 +21,25 @@ package org.teamapps.reporting.builder;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class RowBuilder {
 
 	private Map<String, String> rowMap = new HashMap<>();
+	private final TemplateRowSelectionMode templateRowSelectionMode;
 
 	public RowBuilder() {
+		this.templateRowSelectionMode = null;
+	}
+
+	/** Overrides the report-wide selection mode for this input row. */
+	public RowBuilder(TemplateRowSelectionMode templateRowSelectionMode) {
+		this.templateRowSelectionMode = Objects.requireNonNull(templateRowSelectionMode, "templateRowSelectionMode");
+	}
+
+	/** Returns the explicit override, or null when the report-wide default applies. */
+	public TemplateRowSelectionMode getTemplateRowSelectionMode() {
+		return templateRowSelectionMode;
 	}
 
 	public RowBuilder setColumnValue(String columnKey, String value) {
